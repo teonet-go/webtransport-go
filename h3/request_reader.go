@@ -25,13 +25,10 @@ func RequestFromHeaders(headers []qpack.HeaderField) (request *http.Request,
 	// https://tools.ietf.org/html/draft-ietf-quic-http-12#section-4.1
 	var path, authority, method, contentLengthStr string
 
-	// The :protocol header is not mandatory but it is used to set the
-	// protocol version of the request
-	var protocolVer string
-
 	// The other headers are HTTP headers
 	httpHeaders := http.Header{}
 
+	// Parse the headers
 	for _, h := range headers {
 		switch h.Name {
 		case ":path":
@@ -41,7 +38,7 @@ func RequestFromHeaders(headers []qpack.HeaderField) (request *http.Request,
 		case ":authority":
 			authority = h.Value
 		case ":protocol":
-			protocolVer = h.Value
+			protocol = h.Value
 		case "content-length":
 			contentLengthStr = h.Value
 		default:
@@ -85,6 +82,7 @@ func RequestFromHeaders(headers []qpack.HeaderField) (request *http.Request,
 		requestURI = path
 	}
 
+	// Set the content length
 	var contentLength int64
 	if len(contentLengthStr) > 0 {
 		contentLength, err = strconv.ParseInt(contentLengthStr, 10, 64)
@@ -94,12 +92,11 @@ func RequestFromHeaders(headers []qpack.HeaderField) (request *http.Request,
 	}
 
 	// Set the protocol version of the request
-	if len(protocolVer) > 0 {
-		protocol = protocolVer
-	} else {
+	if len(protocol) == 0 {
 		protocol = "h3"
 	}
 
+	// Return the request and the protocol
 	return &http.Request{
 		Method:        method,
 		URL:           u,

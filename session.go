@@ -11,9 +11,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/teonet-go/webtransport-go/h3"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/teonet-go/webtransport-go/h3"
 )
 
 // Session is a WebTransport session (and the Body of a WebTransport http.Request)

@@ -10,9 +10,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/teonet-go/webtransport-go/h3"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/teonet-go/webtransport-go/h3"
 )
 
 var ErrWrongStreamType = fmt.Errorf("unidirectional stream received with the wrong stream type")
@@ -71,9 +71,9 @@ func (s *ReceiveStream) Read(p []byte) (int, error) {
 // and return the actual number of bytes written or an error.
 //
 // Before first write it writes stream header, which is:
-// - one byte with the stream type (should be h3.STREAM_WEBTRANSPORT_UNI_STREAM)
-// - requestSessionID, which is the ID of the stream, as it is sent in the
-//   WebTransport stream header.
+//   - one byte with the stream type (should be h3.STREAM_WEBTRANSPORT_UNI_STREAM)
+//   - requestSessionID, which is the ID of the stream, as it is sent in the
+//     WebTransport stream header.
 func (s *SendStream) Write(p []byte) (int, error) {
 
 	// Write stream header before first data write

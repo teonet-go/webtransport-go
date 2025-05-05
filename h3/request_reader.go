@@ -11,8 +11,25 @@ import (
 	"github.com/quic-go/qpack"
 )
 
-func RequestFromHeaders(headers []qpack.HeaderField) (*http.Request, string, error) {
-	var path, authority, method, contentLengthStr, protocol string
+var ErrPathAuthorityMethodEmpty = errors.New(":path, :authority and :method must not be empty")
+
+// RequestFromHeaders returns a new http.Request from the given headers.
+// It takes into account the HTTP/3 specific headers and sets the
+// request URI, method, headers, content length, host and TLS connection state.
+// It returns the parsed request and the protocol version.
+// If an error occurs, it returns an error.
+func RequestFromHeaders(headers []qpack.HeaderField) (request *http.Request,
+	protocol string, err error) {
+
+	// The :path, :authority and :method headers are mandatory
+	// https://tools.ietf.org/html/draft-ietf-quic-http-12#section-4.1
+	var path, authority, method, contentLengthStr string
+
+	// The :protocol header is not mandatory but it is used to set the
+	// protocol version of the request
+	var protocolVer string
+
+	// The other headers are HTTP headers
 	httpHeaders := http.Header{}
 
 	for _, h := range headers {
@@ -24,44 +41,46 @@ func RequestFromHeaders(headers []qpack.HeaderField) (*http.Request, string, err
 		case ":authority":
 			authority = h.Value
 		case ":protocol":
-			protocol = h.Value
+			protocolVer = h.Value
 		case "content-length":
 			contentLengthStr = h.Value
 		default:
+			// If the header is not a pseudo header, it is an HTTP header
 			if !h.IsPseudo() {
 				httpHeaders.Add(h.Name, h.Value)
 			}
 		}
 	}
 
-	// concatenate cookie headers, see https://tools.ietf.org/html/rfc6265#section-5.4
+	// Concatenate Cookie headers, see
+	// https://tools.ietf.org/html/rfc6265#section-5.4
 	if len(httpHeaders["Cookie"]) > 0 {
 		httpHeaders.Set("Cookie", strings.Join(httpHeaders["Cookie"], "; "))
 	}
 
-	isConnect := method == http.MethodConnect
-	if isConnect {
-		// if path != "" || authority == "" {
-		//   return nil, errors.New(":path must be empty and :authority must not be empty")
-		// }
-	} else if len(path) == 0 || len(authority) == 0 || len(method) == 0 {
-		return nil, "", errors.New(":path, :authority and :method must not be empty")
-	}
-
 	var u *url.URL
 	var requestURI string
-	var err error
 
-	if isConnect {
+	switch {
+
+	// If connected, the request URI is the path
+	case method == http.MethodConnect:
 		u, err = url.ParseRequestURI("https://" + authority + path)
 		if err != nil {
-			return nil, "", err
+			return
 		}
 		requestURI = path
-	} else {
+
+	// If not connected, the request URI is the path
+	default:
+		if len(path) == 0 || len(authority) == 0 || len(method) == 0 {
+			err = ErrPathAuthorityMethodEmpty
+			return
+		}
+
 		u, err = url.ParseRequestURI(path)
 		if err != nil {
-			return nil, "", err
+			return
 		}
 		requestURI = path
 	}
@@ -70,8 +89,15 @@ func RequestFromHeaders(headers []qpack.HeaderField) (*http.Request, string, err
 	if len(contentLengthStr) > 0 {
 		contentLength, err = strconv.ParseInt(contentLengthStr, 10, 64)
 		if err != nil {
-			return nil, "", err
+			return
 		}
+	}
+
+	// Set the protocol version of the request
+	if len(protocolVer) > 0 {
+		protocol = protocolVer
+	} else {
+		protocol = "h3"
 	}
 
 	return &http.Request{
@@ -87,11 +113,4 @@ func RequestFromHeaders(headers []qpack.HeaderField) (*http.Request, string, err
 		RequestURI:    requestURI,
 		TLS:           &tls.ConnectionState{},
 	}, protocol, nil
-}
-
-func hostnameFromRequest(req *http.Request) string {
-	if req.URL != nil {
-		return req.URL.Host
-	}
-	return ""
 }

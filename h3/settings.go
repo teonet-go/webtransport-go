@@ -27,6 +27,9 @@ type SettingID uint64
 
 type SettingsMap map[SettingID]uint64
 
+// FromFrame reads a Frame and stores it in the SettingsMap.
+//
+// It returns an error if the frame size is too large or if there are duplicate settings.
 func (s *SettingsMap) FromFrame(f Frame) error {
 	if f.Length > 8*(1<<10) {
 		return fmt.Errorf("unexpected size for SETTINGS frame: %d", f.Length)
@@ -51,15 +54,19 @@ func (s *SettingsMap) FromFrame(f Frame) error {
 	return nil
 }
 
+// ToFrame converts the SettingsMap to a frame.
+//
+// It returns an error if the frame size is too large or if there are duplicate settings.
 func (s SettingsMap) ToFrame() Frame {
 	f := Frame{Type: FRAME_SETTINGS}
 
-	b := &bytes.Buffer{}
 	var l uint64
 	for id, val := range s {
 		l += uint64(quicvarint.Len(uint64(id)) + quicvarint.Len(val))
 	}
+
 	f.Length = l
+	b := &bytes.Buffer{}
 	for id, val := range s {
 		b.Write(quicvarint.Append(nil, uint64(id)))
 		b.Write(quicvarint.Append(nil, val))
@@ -69,17 +76,23 @@ func (s SettingsMap) ToFrame() Frame {
 	return f
 }
 
+// String returns a human-readable representation of the setting ID.
 func (id SettingID) String() string {
 	switch id {
 	case 0x01:
+		// QPACK_MAX_TABLE_CAPACITY (draft-ietf-quic-qpack-21)
 		return "QPACK_MAX_TABLE_CAPACITY"
 	case 0x06:
+		// MAX_FIELD_SECTION_SIZE (draft-ietf-quic-http-34)
 		return "MAX_FIELD_SECTION_SIZE"
 	case 0x07:
+		// QPACK_BLOCKED_STREAMS (draft-ietf-quic-qpack-21)
 		return "QPACK_BLOCKED_STREAMS"
 	case 0x2b603742:
+		// ENABLE_WEBTRANSPORT (draft-ietf-webtrans-http3-02)
 		return "ENABLE_WEBTRANSPORT"
 	case 0xffd277:
+		// H3_DATAGRAM_05 (draft-ietf-masque-h3-datagram-05)
 		return "H3_DATAGRAM_05"
 	default:
 		return fmt.Sprintf("%#x", uint64(id))
